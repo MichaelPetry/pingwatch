@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PingWatch — mockup</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --panel2: #1c2129;
+    --border: #2d333b;
+    --text: #c9d1d9;
+    --dim: #8b949e;
+    --green: #3fb950;
+    --red: #f85149;
+    --yellow: #d29922;
+    --line: #58a6ff;
+    --mono: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 20px;
+    background: var(--bg); color: var(--text);
+    font: 14px/1.4 -apple-system, "Helvetica Neue", sans-serif;
+  }
+  .wrap { max-width: 1150px; margin: 0 auto; }
+
+  /* ---------- header ---------- */
+  header { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; flex-wrap: wrap; }
+  h1 { font-size: 18px; margin: 0; letter-spacing: .3px; font-weight: 600; }
+  .badge {
+    background: rgba(31,111,235,.2); color: #79c0ff;
+    border: 1px solid rgba(31,111,235,.45);
+    font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 10px;
+  }
+  .summary { color: var(--dim); font-family: var(--mono); font-size: 13px; }
+  .summary b { font-weight: 600; }
+  .summary .up { color: var(--green); }
+  .summary .down { color: var(--red); }
+  .summary .degraded { color: var(--yellow); }
+  .tick {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--green); flex: none;
+  }
+  .tick.flash { animation: flash .6s ease-out; }
+  @keyframes flash {
+    0%   { box-shadow: 0 0 0 0 rgba(63,185,80,.8); }
+    100% { box-shadow: 0 0 0 9px rgba(63,185,80,0); }
+  }
+  .spacer { flex: 1; }
+  .ctrl { display: flex; align-items: center; gap: 6px; color: var(--dim); font-size: 12px; }
+  select, button {
+    background: var(--panel2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px;
+    font-size: 12px; padding: 3px 8px; cursor: pointer;
+  }
+  button:hover, select:hover { border-color: #444c56; }
+
+  /* ---------- table ---------- */
+  .board {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; overflow: hidden;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: 30px 220px 84px minmax(280px, 1fr) 210px;
+    align-items: center; gap: 0 10px;
+    padding: 0 14px;
+  }
+  .grid.head {
+    padding-top: 10px; padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+    color: var(--dim); font-size: 11px; font-weight: 600;
+    letter-spacing: .8px; text-transform: uppercase;
+  }
+  .row { min-height: 52px; border-bottom: 1px solid rgba(45,51,59,.55); }
+  .row:last-child { border-bottom: none; }
+  .row:hover { background: rgba(255,255,255,.025); }
+
+  .dot {
+    width: 11px; height: 11px; border-radius: 50%;
+    justify-self: center; flex: none;
+  }
+  .dot.up       { background: var(--green); box-shadow: 0 0 6px rgba(63,185,80,.55); }
+  .dot.degraded { background: var(--yellow); box-shadow: 0 0 6px rgba(210,153,34,.55); }
+  .dot.down     { background: var(--red); box-shadow: 0 0 7px rgba(248,81,73,.65); animation: blink 1s steps(2) infinite; }
+  @keyframes blink { 50% { opacity: .35; } }
+
+  .host { min-width: 0; }
+  .host .name { font-family: var(--mono); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .host .label { color: var(--dim); font-size: 11px; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .rtt { font-family: var(--mono); font-size: 16px; font-weight: 600; }
+  .rtt small { font-size: 10px; color: var(--dim); font-weight: 400; margin-left: 2px; }
+  .rtt.dead { color: var(--red); font-size: 13px; font-weight: 400; }
+
+  canvas { width: 100%; height: 44px; display: block; }
+
+  .stats { text-align: right; font-family: var(--mono); font-size: 11.5px; }
+  .stats .mm { color: var(--dim); }
+  .stats .loss { margin-top: 2px; }
+  .stats .loss.ok { color: var(--dim); }
+  .stats .loss.bad { color: var(--yellow); }
+  .stats .loss.worse { color: var(--red); font-weight: 600; }
+
+  /* ---------- footer ---------- */
+  footer {
+    display: flex; gap: 18px; align-items: center; flex-wrap: wrap;
+    margin-top: 12px; color: var(--dim); font-size: 12px;
+  }
+  .legend-item { display: flex; align-items: center; gap: 7px; }
+  .swatch { width: 22px; height: 10px; border-radius: 2px; flex: none; }
+  .swatch.line  { background: linear-gradient(180deg, var(--line), transparent); height: 3px; }
+  .swatch.notch { background: var(--red); width: 4px; height: 10px; }
+  .swatch.shade { background: rgba(248,81,73,.18); border: 1px solid rgba(248,81,73,.35); }
+  .note { flex: 1; text-align: right; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="tick" id="tick"></div>
+    <h1>PingWatch</h1>
+    <span class="badge">MOCKUP · simulated data</span>
+    <span class="summary" id="summary"></span>
+    <span class="summary" id="clock"></span>
+    <span class="spacer"></span>
+    <div class="ctrl">interval
+      <select id="interval">
+        <option value="250">250 ms</option>
+        <option value="500">500 ms</option>
+        <option value="1000" selected>1 s</option>
+        <option value="2000">2 s</option>
+      </select>
+    </div>
+    <div class="ctrl">window
+      <select id="window">
+        <option value="30">30 pings</option>
+        <option value="60" selected>60 pings</option>
+        <option value="120">120 pings</option>
+      </select>
+    </div>
+    <div class="ctrl"><button id="clear">clear</button></div>
+  </header>
+
+  <div class="board">
+    <div class="grid head">
+      <div></div><div>Host</div><div>RTT</div><div id="winLabel">Last 60 s</div><div style="text-align:right">min / avg / max</div>
+    </div>
+    <div id="rows"></div>
+  </div>
+
+  <footer>
+    <div class="legend-item"><div class="swatch line"></div> RTT (ms, auto-scaled)</div>
+    <div class="legend-item"><div class="swatch notch"></div> lost ping</div>
+    <div class="legend-item"><div class="swatch shade"></div> host down (no reply)</div>
+    <div class="note">mock: one flaky host, one that drops out — real tool builds its own ICMP echo packets (no root, no /sbin/ping)</div>
+  </footer>
+</div>
+
+<script>
+"use strict";
+
+// ---------------------------------------------------------------- hosts
+const HOSTS = [
+  { name: "192.168.1.1",    label: "Gateway",        base: 1.2,  jitter: 0.25, loss: 0.001, spike: 12,  flaky: false },
+  { name: "192.168.1.100",  label: "NAS",            base: 2.4,  jitter: 0.5,  loss: 0.0,   spike: 20,  flaky: false },
+  { name: "10.20.3.7",      label: "vm-10.20.3.7",   base: 4.8,  jitter: 2.4,  loss: 0.08,  spike: 45,  flaky: false },
+  { name: "8.8.8.8",        label: "Google DNS",     base: 12,   jitter: 4,    loss: 0.005, spike: 30,  flaky: false },
+  { name: "1.1.1.1",        label: "Cloudflare",     base: 24,   jitter: 6,    loss: 0.01,  spike: 28,  flaky: false },
+  { name: "198.51.100.25",  label: "Boulder edge",   base: 48,   jitter: 8,    loss: 0.004, spike: 60,  flaky: false },
+  { name: "203.0.113.10",   label: "SG datacenter",  base: 95,   jitter: 18,   loss: 0.02,  spike: 90,  flaky: false },
+  { name: "printer.local",  label: "HP Printer",     base: 1.8,  jitter: 0.4,  loss: 0.01,  spike: 10,  flaky: true  },
+];
+
+const state = HOSTS.map(h => ({
+  ...h,
+  samples: [],            // newest last; each entry: rtt (number) or null
+  down: false,
+  downFor: 0,             // seconds host has been down
+  upLeft: 0, downLeft: 0, // outage scheduler
+}));
+
+// ---------------------------------------------------------------- simulation
+function genSample(h) {
+  if (h.down) {
+    if (--h.downLeft <= 0) { h.down = false; h.upLeft = 40 + Math.random() * 120; }
+    h.downFor++;
+    return null;
+  }
+  if (h.flaky && --h.upLeft <= 0) {
+    h.down = true; h.downFor = 0; h.downLeft = 15 + Math.random() * 40;
+    return null;
+  }
+  if (Math.random() < h.loss) { h.downFor = 0; return null; }   // isolated packet loss
+  h.downFor = 0;
+  let rtt = h.base + (Math.random() - 0.35) * 2 * h.jitter;     // slightly left-skewed jitter
+  if (Math.random() < 0.02) rtt += h.spike * (0.5 + Math.random()); // occasional spike
+  return Math.max(0.1, rtt);
+}
+
+// ---------------------------------------------------------------- rendering
+const rowsEl = document.getElementById("rows");
+const summaryEl = document.getElementById("summary");
+const clockEl = document.getElementById("clock");
+const tickEl = document.getElementById("tick");
+const winLabelEl = document.getElementById("winLabel");
+
+state.forEach((h, i) => {
+  const row = document.createElement("div");
+  row.className = "grid row";
+  row.innerHTML = `
+    <div class="dot up" id="dot-${i}"></div>
+    <div class="host">
+      <div class="name">${h.name}</div>
+      <div class="label">${h.label}</div>
+    </div>
+    <div class="rtt" id="rtt-${i}">—</div>
+    <canvas id="cv-${i}"></canvas>
+    <div class="stats">
+      <div class="mm" id="mm-${i}">– / – / –</div>
+      <div class="loss ok" id="loss-${i}">loss –</div>
+    </div>`;
+  rowsEl.appendChild(row);
+});
+
+function niceMax(v) {
+  if (!isFinite(v) || v <= 0) return 5;
+  const p = Math.pow(10, Math.floor(Math.log10(v)));
+  for (const m of [1, 2, 5, 10]) if (m * p >= v) return m * p;
+  return 10 * p;
+}
+
+function drawChart(cv, samples, h) {
+  const dpr = window.devicePixelRatio || 1;
+  const w = cv.clientWidth, hpx = cv.clientHeight;
+  if (w === 0) return;
+  if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(hpx * dpr)) {
+    cv.width = Math.round(w * dpr); cv.height = Math.round(hpx * dpr);
+  }
+  const ctx = cv.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, hpx);
+
+  const n = samples.length;
+  if (n < 2) return;
+  const step = w / (n - 1);
+  const vals = samples.map(s => s).filter(v => v != null);
+  const max = niceMax(Math.max(...vals, 0) * 1.12);
+  const y = v => hpx - 8 - (v / max) * (hpx - 18);
+
+  // faint grid: midline + top label
+  ctx.strokeStyle = "rgba(139,148,158,.15)";
+  ctx.lineWidth = 1;
+  ctx.setLineDash([3, 4]);
+  ctx.beginPath(); ctx.moveTo(0, y(max * .5) + .5); ctx.lineTo(w, y(max * .5) + .5); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = "rgba(139,148,158,.65)";
+  ctx.font = "10px " + getComputedStyle(document.body).fontFamily;
+  ctx.fillText(max.toFixed(max < 10 ? 1 : 0) + " ms", 3, 11);
+
+  // shade down-runs (>= 2 consecutive nulls)
+  let runStart = -1;
+  const runs = [];
+  for (let i = 0; i <= n; i++) {
+    const nullHere = i < n && samples[i] == null;
+    if (nullHere && runStart < 0) runStart = i;
+    if (!nullHere && runStart >= 0) { if (i - runStart >= 2) runs.push([runStart, i]); runStart = -1; }
+  }
+  for (const [a, b] of runs) {
+    ctx.fillStyle = "rgba(248,81,73,.13)";
+    ctx.fillRect(a * step - step / 2, 0, (b - a) * step, hpx);
+  }
+
+  // RTT line + fill, per contiguous run
+  ctx.lineJoin = "round"; ctx.lineCap = "round";
+  let run = null;
+  const flush = () => {
+    if (!run) return;
+    ctx.beginPath();
+    ctx.moveTo(run[0][0], hpx - 2);
+    for (const [x, v] of run) ctx.lineTo(x, y(v));
+    ctx.lineTo(run[run.length - 1][0], hpx - 2);
+    ctx.closePath();
+    ctx.fillStyle = "rgba(88,166,255,.14)";
+    ctx.fill();
+    ctx.beginPath();
+    run.forEach(([x, v], i) => i ? ctx.lineTo(x, y(v)) : ctx.moveTo(x, y(v)));
+    ctx.strokeStyle = getCss("--line");
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    run = null;
+  };
+  samples.forEach((s, i) => {
+    if (s == null) { flush(); return; }
+    if (!run) run = [];
+    run.push([i * step, s]);
+  });
+  flush();
+
+  // lost-ping notches (single red tick per null sample)
+  ctx.fillStyle = getCss("--red");
+  samples.forEach((s, i) => {
+    if (s != null) return;
+    const x = i * step;
+    ctx.fillRect(x - Math.max(1.5, step / 2 - 1), hpx - 3, Math.max(3, step - 1), 5);
+  });
+
+  // "now" edge
+  ctx.fillStyle = "rgba(201,209,217,.25)";
+  ctx.fillRect(w - 1, 0, 1, hpx);
+}
+
+function getCss(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+function fmt(v) { return v >= 100 ? v.toFixed(0) : v.toFixed(1); }
+
+function updateRow(i) {
+  const h = state[i];
+  const n = windowSize();
+  const win = h.samples.slice(-n);
+
+  // status
+  const dot = document.getElementById("dot-" + i);
+  const rttEl = document.getElementById("rtt-" + i);
+  const mmEl = document.getElementById("mm-" + i);
+  const lossEl = document.getElementById("loss-" + i);
+
+  const cur = h.samples[h.samples.length - 1];
+  const curDown = h.down || cur == null;
+  const vals = win.filter(v => v != null);
+  const lossPct = win.length ? (win.length - vals.length) / win.length * 100 : 0;
+
+  let status = "up";
+  if (curDown) status = "down";
+  else if (lossPct > 5) status = "degraded";
+  dot.className = "dot " + status;
+
+  if (curDown) {
+    rttEl.className = "rtt dead";
+    rttEl.textContent = h.down ? "down " + h.downFor + "s" : "no reply";
+  } else {
+    rttEl.className = "rtt";
+    rttEl.innerHTML = fmt(cur) + "<small>ms</small>";
+  }
+
+  if (vals.length) {
+    const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+    mmEl.textContent = `${fmt(Math.min(...vals))} / ${fmt(avg)} / ${fmt(Math.max(...vals))}`;
+  } else {
+    mmEl.textContent = "– / – / –";
+  }
+  const lossTxt = `loss ${lossPct.toFixed(lossPct < 1 ? 1 : 0)}%`;
+  lossEl.textContent = lossTxt;
+  lossEl.className = "loss " + (lossPct === 0 ? "ok" : lossPct > 5 ? "worse" : "bad");
+
+  drawChart(document.getElementById("cv-" + i), win, h);
+}
+
+function updateSummary() {
+  let up = 0, down = 0, degraded = 0;
+  for (const h of state) {
+    const cur = h.samples[h.samples.length - 1];
+    const win = h.samples.slice(-windowSize());
+    const lossPct = win.length ? (win.filter(v => v == null).length / win.length) * 100 : 0;
+    if (h.down || cur == null) down++;
+    else if (lossPct > 5) degraded++;
+    else up++;
+  }
+  summaryEl.innerHTML =
+    `<b class="up">${up} up</b> · <b class="degraded">${degraded} degraded</b> · <b class="down">${down} down</b> · ${state.length} hosts`;
+}
+
+// ---------------------------------------------------------------- timing
+let msInterval = 1000;
+let winN = 60;
+const windowSize = () => winN;
+const startedAt = Date.now();
+
+function windowSecs() { return Math.round(winN * msInterval / 1000); }
+
+function updateWinLabel() {
+  winLabelEl.textContent = `Last ${windowSecs()} s`;
+}
+
+function tick() {
+  for (const h of state) {
+    h.samples.push(genSample(h));
+    if (h.samples.length > 600) h.samples.splice(0, h.samples.length - 600);
+  }
+  for (let i = 0; i < state.length; i++) updateRow(i);
+  updateSummary();
+  clockEl.textContent = "t+" + Math.floor((Date.now() - startedAt) / 1000) + "s";
+  tickEl.classList.remove("flash");
+  void tickEl.offsetWidth;           // restart animation
+  tickEl.classList.add("flash");
+}
+
+let timer = null;
+function schedule() {
+  clearInterval(timer);
+  timer = setInterval(tick, msInterval);
+}
+
+document.getElementById("interval").addEventListener("change", e => {
+  msInterval = +e.target.value;
+  updateWinLabel();
+  schedule();
+});
+document.getElementById("window").addEventListener("change", e => {
+  winN = +e.target.value;
+  updateWinLabel();
+  for (let i = 0; i < state.length; i++) updateRow(i);
+});
+document.getElementById("clear").addEventListener("click", () => {
+  state.forEach(h => { h.samples = []; h.down = false; h.downFor = 0; });
+  for (let i = 0; i < state.length; i++) updateRow(i);
+});
+window.addEventListener("resize", () => { for (let i = 0; i < state.length; i++) updateRow(i); });
+
+// ---------------------------------------------------------------- boot:
+// pre-seed history so the mockup isn't empty when it opens
+for (let t = 0; t < winN; t++) {
+  for (const h of state) h.samples.push(genSample(h));
+}
+state[7].down = true; state[7].downLeft = 25;   // printer starts mid-outage
+state[7].downFor = 8;
+updateWinLabel();
+for (let i = 0; i < state.length; i++) updateRow(i);
+updateSummary();
+clockEl.textContent = "t+0s";
+schedule();
+</script>
+</body>
+</html>
