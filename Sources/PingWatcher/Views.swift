@@ -138,6 +138,12 @@ struct DashboardView: View {
                     .font(.system(size: 13, design: .monospaced))
                     .lineLimit(1)
                     .truncationMode(.middle)
+                Text(host.address)
+                    .font(.system(size: 10.5, design: .monospaced))
+                    .foregroundColor(host.address.hasPrefix("IPv") ? pal.dim
+                        : (host.address == "no address" ? pal.yellow : pal.dim))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
                 if !host.label.isEmpty {
                     Text(host.label)
                         .font(.system(size: 11))

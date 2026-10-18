@@ -21,6 +21,7 @@ final class HostState: ObservableObject, Identifiable {
     @Published var samples: [Sample] = []   // oldest → newest, capped at 600
     @Published var status: HostStatus = .up
     @Published var lastRtt: Double?
+    @Published var address = "resolving…"   // what the Resolver is actually pinging
     @Published var fails = 0
     var downSince: Date?
 
@@ -114,14 +115,18 @@ final class Monitor: ObservableObject {
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                await self.resolver.refresh(self.hosts.map(\.name))
+                let names = self.hosts.map(\.name)
+                await self.resolver.refresh(names)
+                await self.updateAddresses(names)
             }
         }
         // Resolve once before the first sweep: hostnames with no address yet
         // would otherwise show DOWN while DNS is still in flight.
         Task { [weak self] in
             guard let self else { return }
-            await self.resolver.resolve(self.hosts.map(\.name), force: false)
+            let names = self.hosts.map(\.name)
+            await self.resolver.resolve(names, force: false)
+            await self.updateAddresses(names)
             self.resolvedInitial = true
             self.doSweep()
         }
@@ -142,6 +147,7 @@ final class Monitor: ObservableObject {
         Task { [weak self] in
             guard let self else { return }
             await self.resolver.resolve([name], force: true)
+            await self.updateAddresses([name])
             self.doSweep()
         }
     }
@@ -156,6 +162,15 @@ final class Monitor: ObservableObject {
 
     func clear() {
         hosts.forEach { $0.reset() }
+    }
+
+    /// Mirror the resolver's current pick onto each row (called after every
+    /// resolve — startup, add, background refresh).
+    private func updateAddresses(_ names: [String]) async {
+        let addrs = await resolver.display(for: names)
+        for host in hosts {
+            host.address = addrs[host.name] ?? "resolving…"
+        }
     }
 
     private func reschedule() {

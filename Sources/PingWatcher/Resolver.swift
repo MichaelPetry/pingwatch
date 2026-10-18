@@ -5,6 +5,30 @@ import Darwin
 enum HostAddr: Sendable {
     case v4(UInt32)      // in_addr s_addr, network byte order
     case v6([UInt8])     // 16 bytes
+
+    /// The address as a C struct, for sendto / inet_ntop.
+    var in6: in6_addr {
+        var a = in6_addr()
+        if case .v6(let bytes) = self {
+            withUnsafeMutableBytes(of: &a) { $0.copyBytes(from: bytes) }
+        }
+        return a
+    }
+
+    /// Printable form with family tag, for the UI.
+    var display: String {
+        var buf = [CChar](repeating: 0, count: Int(INET6_ADDRSTRLEN))
+        switch self {
+        case .v4(let sAddr):
+            var a4 = in_addr(s_addr: sAddr)
+            inet_ntop(AF_INET, &a4, &buf, socklen_t(INET_ADDRSTRLEN))
+            return "IPv4 " + String(cString: buf)
+        case .v6:
+            var a6 = in6
+            inet_ntop(AF_INET6, &a6, &buf, socklen_t(INET6_ADDRSTRLEN))
+            return "IPv6 " + String(cString: buf)
+        }
+    }
 }
 
 /// Maps host names to addresses off the ping cycle: at startup, when hosts are
@@ -42,6 +66,22 @@ actor Resolver {
     /// Sweep input — cache only, no DNS. Unresolved names are omitted.
     func targets(for names: [String]) -> [(name: String, addr: HostAddr)] {
         names.compactMap { name in table[name]?.addr.map { (name, $0) } }
+    }
+
+    /// What each row should show as its target: "IPv4 1.2.3.4",
+    /// "no address" (lookup failed, retry pending), or "resolving…".
+    func display(for names: [String]) -> [String: String] {
+        var out = [String: String](minimumCapacity: names.count)
+        for name in names {
+            if let addr = table[name]?.addr {
+                out[name] = addr.display
+            } else if table[name] != nil {
+                out[name] = "no address"
+            } else {
+                out[name] = "resolving…"
+            }
+        }
+        return out
     }
 
     func forget(_ name: String) { table[name] = nil }

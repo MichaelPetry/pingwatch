@@ -10,6 +10,8 @@ interval and draws a rolling RTT graph per host with loss marks.
 - interval and window adjustable live in the header
 - **+/−** buttons add and remove hosts (persisted back to the hosts file,
   comments preserved)
+- each row shows the label and the exact IPv4/IPv6 address being pinged
+  (`resolving…` / `no address` until DNS settles)
 
 ## Build & run
 

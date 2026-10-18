@@ -76,8 +76,8 @@ final class ICMPPinger: @unchecked Sendable {
             switch t.addr {
             case .v4(let sAddr):
                 sentOk = sendV4(addr: in_addr(s_addr: sAddr), seq: seq)
-            case .v6(let bytes):
-                sentOk = sendV6(dst: Self.v6Address(bytes), seq: seq)
+            case .v6:
+                sentOk = sendV6(dst: t.addr.in6, seq: seq)
             }
             if sentOk {
                 pending[seq] = Pending(name: t.name, sent: sent)
@@ -228,13 +228,6 @@ final class ICMPPinger: @unchecked Sendable {
         if i < bytes.count { sum += Int(bytes[i]) }
         while sum >> 16 != 0 { sum = (sum & 0xFFFF) + (sum >> 16) }
         return UInt16(~sum & 0xFFFF)
-    }
-
-    /// 16 raw bytes (from `Resolver`) → `in6_addr`.
-    static func v6Address(_ bytes: [UInt8]) -> in6_addr {
-        var a = in6_addr()
-        withUnsafeMutableBytes(of: &a) { $0.copyBytes(from: bytes) }
-        return a
     }
 
     /// Best-effort learn of the source address the kernel will pick for `dst`

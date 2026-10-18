@@ -2,8 +2,8 @@
 # Lines starting with # are ignored.
 
 192.168.1.1      Gateway (adjust to your LAN)
-8.8.8.8          Google DNS
 1.1.1.1          Cloudflare DNS
 9.9.9.9          Quad9 DNS
 one.one.one.one  Cloudflare (hostname)
 example.com      Example.com
+www.amazon.com
